@@ -7,7 +7,7 @@ type Auction struct {
 	Auctioneer       string `json:"auctioneer"`
 	Start            uint64 `json:"start"`
 	End              uint64 `json:"end"`
-	ItemName         string `json:"item_name"`
+	ItemName         string `json:"item_name" gorm:"index"`
 	Extra            string `json:"extra"`
 	Category         string `json:"category"`
 	Tier             string `json:"tier"`
@@ -21,7 +21,7 @@ type EndedAuction struct {
 	AuctionID string `json:"auction_id" gorm:"primaryKey"`
 	Seller    string `json:"seller"`
 	Buyer     string `json:"buyer"`
-	Timestamp uint64 `json:"timestamp"`
+	Timestamp uint64 `json:"timestamp" gorm:"index:,sort:desc"`
 	Price     uint64 `json:"price"`
 	Bin       bool   `json:"bin"`
 }
