@@ -26,21 +26,29 @@ func sleepUntilNextSecond() {
 }
 
 func (t *Tracker) Start() {
-	var lastUpdated uint64
+	auctionsCache := make(map[string]struct{})
+	endedAuctionsCache := make(map[string]struct{})
+
+	lastUpdated := uint64(0)
+	slog.Info("Tracker started")
 
 	for {
+		tempAuctionsCache := make(map[string]struct{})
+		tempEndedAuctionsCache := make(map[string]struct{})
+
+		auctionsBatch := make([]hypixel.Auction, 0)
+		endedAuctionsBatch := make([]hypixel.EndedAuction, 0)
+
 		auctions, auctionsError := t.hypixelClient.FetchAuctions()
 		endedAuctions, endedAuctionsError := t.hypixelClient.FetchEndedAuctions()
 
 		if auctionsError != nil {
 			slog.Error(auctionsError.Error())
-			sleepUntilNextSecond()
 			continue
 		}
 
 		if endedAuctionsError != nil {
 			slog.Error(endedAuctionsError.Error())
-			sleepUntilNextSecond()
 			continue
 		}
 
@@ -56,8 +64,24 @@ func (t *Tracker) Start() {
 			continue
 		}
 
-		saveAuctionsError := t.repository.SaveAuctions(auctions.Auctions)
-		saveEndedAuctionsError := t.repository.SaveEndedAuctions(endedAuctions.EndedAuctions)
+		for _, auction := range auctions.Auctions {
+			tempAuctionsCache[auction.UUID] = struct{}{}
+
+			if auctionsCache[auction.UUID] != struct{}{} {
+				auctionsBatch = append(auctionsBatch, auction)
+			}
+		}
+
+		for _, endedAuction := range endedAuctions.EndedAuctions {
+			tempEndedAuctionsCache[endedAuction.AuctionID] = struct{}{}
+
+			if endedAuctionsCache[endedAuction.AuctionID] != struct{}{} {
+				endedAuctionsBatch = append(endedAuctionsBatch, endedAuction)
+			}
+		}
+
+		saveAuctionsError := t.repository.SaveAuctions(auctionsBatch)
+		saveEndedAuctionsError := t.repository.SaveEndedAuctions(endedAuctionsBatch)
 
 		if saveAuctionsError != nil {
 			slog.Error(saveAuctionsError.Error())
@@ -69,10 +93,13 @@ func (t *Tracker) Start() {
 			continue
 		}
 
-		lastUpdated = (auctions.LastUpdated + endedAuctions.LastUpdated) / 2
-		slog.Info("Auctions updated")
+		auctionsCache = tempAuctionsCache
+		endedAuctionsCache = tempEndedAuctionsCache
 
-		t.track(auctions.Auctions)
+		lastUpdated = (auctions.LastUpdated + endedAuctions.LastUpdated) / 2
+		slog.Info("Auctions and ended auctions saved")
+
+		t.track(auctionsBatch)
 		slog.Info("Auctions tracked")
 
 		targetTime := time.UnixMilli(int64(lastUpdated)).Add(60 * time.Second)
