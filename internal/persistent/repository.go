@@ -4,7 +4,6 @@ import (
 	"time"
 
 	"github.com/impulseweb3/hypixel-skyblock-auctions-go/internal/hypixel"
-	"gorm.io/gorm/clause"
 )
 
 type Repository struct {
@@ -56,25 +55,9 @@ func (r *Repository) FindVolume(itemName string) (uint64, error) {
 }
 
 func (r *Repository) SaveAuctions(auctions []hypixel.Auction) error {
-	onConflictClause := clause.OnConflict{
-		Columns:   []clause.Column{{Name: "uuid"}},
-		DoNothing: true,
-	}
-
-	return r.database.DB.
-		Clauses(onConflictClause).
-		Create(&auctions).
-		Error
+	return r.database.DB.Create(&auctions).Error
 }
 
 func (r *Repository) SaveEndedAuctions(endedAuctions []hypixel.EndedAuction) error {
-	onConflictClause := clause.OnConflict{
-		Columns:   []clause.Column{{Name: "auction_id"}},
-		DoNothing: true,
-	}
-
-	return r.database.DB.
-		Clauses(onConflictClause).
-		Create(&endedAuctions).
-		Error
+	return r.database.DB.Create(&endedAuctions).Error
 }
