@@ -67,7 +67,7 @@ func (t *Tracker) Start() {
 		for _, auction := range auctions.Auctions {
 			tempAuctionsCache[auction.UUID] = struct{}{}
 
-			if auctionsCache[auction.UUID] != struct{}{} {
+			if _, exists := auctionsCache[auction.UUID]; !exists {
 				auctionsBatch = append(auctionsBatch, auction)
 			}
 		}
@@ -75,7 +75,7 @@ func (t *Tracker) Start() {
 		for _, endedAuction := range endedAuctions.EndedAuctions {
 			tempEndedAuctionsCache[endedAuction.AuctionID] = struct{}{}
 
-			if endedAuctionsCache[endedAuction.AuctionID] != struct{}{} {
+			if _, exists := endedAuctionsCache[endedAuction.AuctionID]; !exists {
 				endedAuctionsBatch = append(endedAuctionsBatch, endedAuction)
 			}
 		}
