@@ -25,90 +25,90 @@ func sleepUntilNextSecond() {
 	time.Sleep(time.Until(nextSecond))
 }
 
-func (t *Tracker) Start() {
-	auctionsCache := make(map[string]struct{})
-	endedAuctionsCache := make(map[string]struct{})
+func sleepUntilNextUpdate(lastUpdated uint64) {
+	nextUpdate := time.UnixMilli(int64(lastUpdated)).Add(time.Minute)
+	time.Sleep(time.Until(nextUpdate))
+}
 
+func (t *Tracker) Start() {
 	lastUpdated := uint64(0)
 	slog.Info("Tracker started")
 
 	for {
-		tempAuctionsCache := make(map[string]struct{})
-		tempEndedAuctionsCache := make(map[string]struct{})
+		auctionsResponse, endedAuctionsResponse, err := t.fetchAuctionsResponseAndEndedAuctionsResponse()
 
-		auctionsBatch := make([]hypixel.Auction, 0)
-		endedAuctionsBatch := make([]hypixel.EndedAuction, 0)
-
-		auctions, auctionsError := t.hypixelClient.FetchAuctions()
-		endedAuctions, endedAuctionsError := t.hypixelClient.FetchEndedAuctions()
-
-		if auctionsError != nil {
-			slog.Error(auctionsError.Error())
+		if err != nil {
+			slog.Error(err.Error())
 			continue
 		}
 
-		if endedAuctionsError != nil {
-			slog.Error(endedAuctionsError.Error())
-			continue
-		}
-
-		if auctions.LastUpdated == lastUpdated {
-			slog.Debug("Auctions not updated")
+		if auctionsResponse.LastUpdated == lastUpdated || endedAuctionsResponse.LastUpdated == lastUpdated {
+			slog.Debug("Auctions or ended auctions not updated")
 			sleepUntilNextSecond()
 			continue
 		}
 
-		if endedAuctions.LastUpdated == lastUpdated {
-			slog.Debug("Ended auctions not updated")
-			sleepUntilNextSecond()
+		auctions, endedAuctions := t.getAuctionsAndEndedAuctions(auctionsResponse, endedAuctionsResponse, lastUpdated)
+		err = t.saveAuctionsAndEndedAuctions(auctions, endedAuctions)
+
+		if err != nil {
+			slog.Error(err.Error())
 			continue
 		}
 
-		for _, auction := range auctions.Auctions {
-			tempAuctionsCache[auction.UUID] = struct{}{}
-
-			if _, exists := auctionsCache[auction.UUID]; !exists {
-				auctionsBatch = append(auctionsBatch, auction)
-			}
-		}
-
-		for _, endedAuction := range endedAuctions.EndedAuctions {
-			tempEndedAuctionsCache[endedAuction.AuctionID] = struct{}{}
-
-			if _, exists := endedAuctionsCache[endedAuction.AuctionID]; !exists {
-				endedAuctionsBatch = append(endedAuctionsBatch, endedAuction)
-			}
-		}
-
-		saveAuctionsError := t.repository.SaveAuctions(auctionsBatch)
-		saveEndedAuctionsError := t.repository.SaveEndedAuctions(endedAuctionsBatch)
-
-		if saveAuctionsError != nil {
-			slog.Error(saveAuctionsError.Error())
-			continue
-		}
-
-		if saveEndedAuctionsError != nil {
-			slog.Error(saveEndedAuctionsError.Error())
-			continue
-		}
-
-		auctionsCache = tempAuctionsCache
-		endedAuctionsCache = tempEndedAuctionsCache
-
-		lastUpdated = (auctions.LastUpdated + endedAuctions.LastUpdated) / 2
+		lastUpdated = auctionsResponse.LastUpdated
 		slog.Info("Auctions and ended auctions saved")
 
-		t.track(auctionsBatch)
+		t.trackAuctions(auctions)
 		slog.Info("Auctions tracked")
 
-		targetTime := time.UnixMilli(int64(lastUpdated)).Add(60 * time.Second)
-		sleepDuration := time.Until(targetTime)
-
-		if sleepDuration > 0 {
-			time.Sleep(sleepDuration)
-		}
+		slog.Info("Sleeping until next update")
+		sleepUntilNextUpdate(lastUpdated)
 	}
 }
 
-func (t *Tracker) track(auctions []hypixel.Auction) {}
+func (t *Tracker) fetchAuctionsResponseAndEndedAuctionsResponse() (*hypixel.AuctionsResponse, *hypixel.EndedAuctionsResponse, error) {
+	auctionsResponse, err := t.hypixelClient.FetchAuctionsResponse()
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	endedAuctionsResponse, err := t.hypixelClient.FetchEndedAuctionsResponse()
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return auctionsResponse, endedAuctionsResponse, nil
+}
+
+func (t *Tracker) getAuctionsAndEndedAuctions(auctionsResponse *hypixel.AuctionsResponse, endedAuctionsResponse *hypixel.EndedAuctionsResponse, lastUpdated uint64) ([]hypixel.Auction, []hypixel.EndedAuction) {
+	auctions := make([]hypixel.Auction, 0, 1000)
+
+	for _, auction := range auctionsResponse.Auctions {
+		if auction.Start >= lastUpdated {
+			auctions = append(auctions, auction)
+		}
+	}
+
+	return auctions, endedAuctionsResponse.EndedAuctions
+}
+
+func (t *Tracker) saveAuctionsAndEndedAuctions(auctions []hypixel.Auction, endedAuctions []hypixel.EndedAuction) error {
+	err := t.repository.SaveAuctions(auctions)
+
+	if err != nil {
+		return err
+	}
+
+	err = t.repository.SaveEndedAuctions(endedAuctions)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (t *Tracker) trackAuctions(auctions []hypixel.Auction) {}

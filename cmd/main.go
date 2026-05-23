@@ -24,7 +24,6 @@ func main() {
 
 	if os.Getenv("ENVIRONMENT") == "production" {
 		slog.SetLogLoggerLevel(slog.LevelInfo)
-
 	} else {
 		slog.SetLogLoggerLevel(slog.LevelDebug)
 	}
@@ -50,7 +49,6 @@ func main() {
 	}
 
 	database := persistent.NewDatabase(db)
-
 	err = database.AutoMigrate()
 
 	if err != nil {

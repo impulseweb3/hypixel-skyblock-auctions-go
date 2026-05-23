@@ -54,7 +54,7 @@ func (c *Client) getAndDecode(url string, v any) error {
 	return nil
 }
 
-func (c *Client) FetchAuctions() (*AuctionsResponse, error) {
+func (c *Client) FetchAuctionsResponse() (*AuctionsResponse, error) {
 	var auctionsResponse AuctionsResponse
 
 	err := c.getAndDecode("https://api.hypixel.net/v2/skyblock/auctions", &auctionsResponse)
@@ -66,7 +66,7 @@ func (c *Client) FetchAuctions() (*AuctionsResponse, error) {
 	return &auctionsResponse, nil
 }
 
-func (c *Client) FetchEndedAuctions() (*EndedAuctionsResponse, error) {
+func (c *Client) FetchEndedAuctionsResponse() (*EndedAuctionsResponse, error) {
 	var endedAuctionsResponse EndedAuctionsResponse
 
 	err := c.getAndDecode("https://api.hypixel.net/v2/skyblock/auctions_ended", &endedAuctionsResponse)
